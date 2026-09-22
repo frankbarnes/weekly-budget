@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Weekly Budget</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Weekly Budget</h1>
+    <div class="week-info">
+      <span id="week-label"></span>
+      <span id="week-range"></span>
+    </div>
+    <div class="summary">
+      <div><strong>Budget:</strong> $<span id="budget-amount">0.00</span></div>
+      <div><strong>Spent:</strong> $<span id="spent-amount">0.00</span></div>
+      <div><strong>Remaining:</strong> $<span id="remaining-amount">0.00</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="controls">
+      <label>
+        Weekly budget:
+        <input type="number" id="budget-input" step="0.01" min="0">
+      </label>
+      <button id="save-budget-btn">Save budget</button>
+      <button id="prev-week-btn">◀ Prev</button>
+      <button id="this-week-btn">This week</button>
+      <button id="next-week-btn">Next ▶</button>
+    </section>
+
+    <section class="add-form">
+      <h2>Add transaction</h2>
+      <div class="form-row">
+        <label>Date:
+          <input type="date" id="tx-date">
+        </label>
+        <label>Category:
+          <input type="text" id="tx-category" placeholder="Food, Fuel, etc.">
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Description:
+          <input type="text" id="tx-desc" placeholder="Optional note">
+        </label>
+        <label>Amount:
+          <input type="number" id="tx-amount" step="0.01">
+        </label>
+      </div>
+      <button id="add-tx-btn">Add</button>
+    </section>
+
+    <section class="table-section">
+      <h2>Transactions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tx-table-body"></tbody>
+      </table>
+    </section>
+
+    <section class="export-section">
+      <button id="export-csv-btn">Export week as CSV</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
+  </script>
+</body>
+</html>
