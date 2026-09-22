@@ -16,8 +16,10 @@
     </div>
     <div class="summary">
       <div><strong>Budget:</strong> $<span id="budget-amount">0.00</span></div>
+      <div><strong>Income:</strong> $<span id="income-amount">0.00</span></div>
       <div><strong>Spent:</strong> $<span id="spent-amount">0.00</span></div>
       <div><strong>Remaining:</strong> $<span id="remaining-amount">0.00</span></div>
+      <div><strong>Ahead/Behind:</strong> <span id="ahead-behind"></span></div>
     </div>
   </header>
 
@@ -35,23 +37,43 @@
 
     <section class="add-form">
       <h2>Add transaction</h2>
+
       <div class="form-row">
+        <label>Type:
+          <select id="tx-type">
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+        </label>
         <label>Date:
           <input type="date" id="tx-date">
         </label>
-        <label>Category:
-          <input type="text" id="tx-category" placeholder="Food, Fuel, etc.">
-        </label>
       </div>
+
       <div class="form-row">
+        <label>Category:
+          <input type="text" id="tx-category" placeholder="Food, Fuel, Paycheck, etc.">
+        </label>
         <label>Description:
           <input type="text" id="tx-desc" placeholder="Optional note">
         </label>
+      </div>
+
+      <div class="form-row">
         <label>Amount:
           <input type="number" id="tx-amount" step="0.01">
         </label>
       </div>
+
       <button id="add-tx-btn">Add</button>
+    </section>
+
+    <section class="filter-section">
+      <label>Category filter:
+        <select id="category-filter">
+          <option value="all">All</option>
+        </select>
+      </label>
     </section>
 
     <section class="table-section">
@@ -59,6 +81,7 @@
       <table>
         <thead>
           <tr>
+            <th>Type</th>
             <th>Date</th>
             <th>Category</th>
             <th>Description</th>
@@ -73,6 +96,13 @@
     <section class="export-section">
       <button id="export-csv-btn">Export week as CSV</button>
     </section>
+
+    <section class="collapse-header" id="monthly-header">Monthly Summary ▼</section>
+    <section class="collapse-content" id="monthly-content"></section>
+
+    <section class="collapse-header" id="yearly-header">Yearly Summary ▼</section>
+    <section class="collapse-content" id="yearly-content"></section>
+
   </main>
 
   <script src="app.js"></script>
