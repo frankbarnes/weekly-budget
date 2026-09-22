@@ -30,6 +30,7 @@ h1 {
 .summary {
   margin-top: 8px;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   font-size: 14px;
 }
@@ -53,10 +54,6 @@ section {
   align-items: center;
 }
 
-.controls input {
-  width: 100px;
-}
-
 button {
   padding: 6px 10px;
   border-radius: 6px;
@@ -75,16 +72,6 @@ button:hover {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
-}
-
-.add-form input {
-  width: 100%;
-}
-
-@media (min-width: 600px) {
-  .add-form input {
-    width: auto;
-  }
 }
 
 table {
@@ -111,4 +98,26 @@ td:last-child {
   color: #b00020;
   border-color: #b00020;
   background: #fff0f3;
+}
+
+.income-amount {
+  color: #0a7d00;
+  font-weight: bold;
+}
+
+.collapse-header {
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  background: #fff;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.collapse-content {
+  display: none;
+  padding: 10px;
+  background: #fff;
+  border-radius: 6px;
+  margin-top: -10px;
 }
