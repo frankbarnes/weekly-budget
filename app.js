@@ -1,15 +1,15 @@
-const STORAGE_KEY = 'weekly-budget-data-v1';
+const STORAGE_KEY = 'weekly-budget-data-v2';
 
 let state = {
   weeklyBudget: 0,
-  transactions: [], // {id, date, category, desc, amount}
+  transactions: [], // {id, type, date, category, desc, amount}
   currentWeekStart: startOfWeek(new Date())
 };
 
 function startOfWeek(d) {
   const date = new Date(d);
-  const day = date.getDay(); // 0=Sun
-  const diff = (day === 0 ? -6 : 1) - day; // Monday as start
+  const day = date.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
   date.setDate(date.getDate() + diff);
   date.setHours(0,0,0,0);
   return date;
@@ -63,10 +63,13 @@ function render() {
   const weekLabelEl = document.getElementById('week-label');
   const weekRangeEl = document.getElementById('week-range');
   const budgetAmountEl = document.getElementById('budget-amount');
+  const incomeAmountEl = document.getElementById('income-amount');
   const spentAmountEl = document.getElementById('spent-amount');
   const remainingAmountEl = document.getElementById('remaining-amount');
+  const aheadBehindEl = document.getElementById('ahead-behind');
   const budgetInputEl = document.getElementById('budget-input');
   const tbody = document.getElementById('tx-table-body');
+  const categoryFilterEl = document.getElementById('category-filter');
 
   const range = getWeekRange(state.currentWeekStart);
   weekLabelEl.textContent = 'Week of';
@@ -79,46 +82,158 @@ function render() {
     isInWeek(tx.date, state.currentWeekStart)
   );
 
+  let income = 0;
   let spent = 0;
+
+  const categories = new Set(['all']);
+
   tbody.innerHTML = '';
+
   weekTx.forEach(tx => {
-    spent += tx.amount;
-    const tr = document.createElement('tr');
+    categories.add(tx.category);
 
-    const tdDate = document.createElement('td');
-    tdDate.textContent = tx.date;
-
-    const tdCat = document.createElement('td');
-    tdCat.textContent = tx.category || '';
-
-    const tdDesc = document.createElement('td');
-    tdDesc.textContent = tx.desc || '';
-
-    const tdAmt = document.createElement('td');
-    tdAmt.textContent = tx.amount.toFixed(2);
-
-    const tdDel = document.createElement('td');
-    const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    btn.className = 'delete-btn';
-    btn.onclick = () => {
-      state.transactions = state.transactions.filter(t => t.id !== tx.id);
-      saveState();
-      render();
-    };
-    tdDel.appendChild(btn);
-
-    tr.appendChild(tdDate);
-    tr.appendChild(tdCat);
-    tr.appendChild(tdDesc);
-    tr.appendChild(tdAmt);
-    tr.appendChild(tdDel);
-
-    tbody.appendChild(tr);
+    if (tx.type === 'income') income += tx.amount;
+    else spent += tx.amount;
   });
 
+  categoryFilterEl.innerHTML = '';
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+    categoryFilterEl.appendChild(opt);
+  });
+
+  const selectedCat = categoryFilterEl.value;
+
+  weekTx
+    .filter(tx => selectedCat === 'all' || tx.category === selectedCat)
+    .forEach(tx => {
+      const tr = document.createElement('tr');
+
+      const tdType = document.createElement('td');
+      tdType.textContent = tx.type === 'income' ? 'Income' : 'Expense';
+
+      const tdDate = document.createElement('td');
+      tdDate.textContent = tx.date;
+
+      const tdCat = document.createElement('td');
+      tdCat.textContent = tx.category || '';
+
+      const tdDesc = document.createElement('td');
+      tdDesc.textContent = tx.desc || '';
+
+      const tdAmt = document.createElement('td');
+      tdAmt.textContent = tx.amount.toFixed(2);
+      if (tx.type === 'income') tdAmt.className = 'income-amount';
+
+      const tdDel = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.textContent = 'Delete';
+      btn.className = 'delete-btn';
+      btn.onclick = () => {
+        state.transactions = state.transactions.filter(t => t.id !== tx.id);
+        saveState();
+        render();
+      };
+      tdDel.appendChild(btn);
+
+      tr.appendChild(tdType);
+      tr.appendChild(tdDate);
+      tr.appendChild(tdCat);
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdAmt);
+      tr.appendChild(tdDel);
+
+      tbody.appendChild(tr);
+    });
+
+  incomeAmountEl.textContent = income.toFixed(2);
   spentAmountEl.textContent = spent.toFixed(2);
   remainingAmountEl.textContent = (state.weeklyBudget - spent).toFixed(2);
+
+  const ahead = income - spent - state.weeklyBudget;
+  aheadBehindEl.textContent = ahead.toFixed(2);
+  aheadBehindEl.style.color = ahead >= 0 ? '#0a7d00' : '#b00020';
+
+  renderMonthly();
+  renderYearly();
+}
+
+function renderMonthly() {
+  const content = document.getElementById('monthly-content');
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+
+  const monthTx = state.transactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getMonth() === month && d.getFullYear() === year;
+  });
+
+  let income = 0;
+  let spent = 0;
+  const catTotals = {};
+
+  monthTx.forEach(tx => {
+    if (tx.type === 'income') income += tx.amount;
+    else spent += tx.amount;
+
+    catTotals[tx.category] = (catTotals[tx.category] || 0) + tx.amount;
+  });
+
+  const ahead = income - spent - (state.weeklyBudget * 4);
+
+  let html = `
+    <div><strong>Income:</strong> $${income.toFixed(2)}</div>
+    <div><strong>Spending:</strong> $${spent.toFixed(2)}</div>
+    <div><strong>Net:</strong> $${(income - spent).toFixed(2)}</div>
+    <div><strong>Ahead/Behind:</strong> $${ahead.toFixed(2)}</div>
+    <h3>Category Totals</h3>
+  `;
+
+  Object.keys(catTotals).forEach(cat => {
+    html += `<div>${cat}: $${catTotals[cat].toFixed(2)}</div>`;
+  });
+
+  content.innerHTML = html;
+}
+
+function renderYearly() {
+  const content = document.getElementById('yearly-content');
+  const year = new Date().getFullYear();
+
+  const yearTx = state.transactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getFullYear() === year;
+  });
+
+  let income = 0;
+  let spent = 0;
+  const catTotals = {};
+
+  yearTx.forEach(tx => {
+    if (tx.type === 'income') income += tx.amount;
+    else spent += tx.amount;
+
+    catTotals[tx.category] = (catTotals[tx.category] || 0) + tx.amount;
+  });
+
+  const ahead = income - spent - (state.weeklyBudget * 52);
+
+  let html = `
+    <div><strong>Income:</strong> $${income.toFixed(2)}</div>
+    <div><strong>Spending:</strong> $${spent.toFixed(2)}</div>
+    <div><strong>Net:</strong> $${(income - spent).toFixed(2)}</div>
+    <div><strong>Ahead/Behind:</strong> $${ahead.toFixed(2)}</div>
+    <h3>Category Totals</h3>
+  `;
+
+  Object.keys(catTotals).forEach(cat => {
+    html += `<div>${cat}: $${catTotals[cat].toFixed(2)}</div>`;
+  });
+
+  content.innerHTML = html;
 }
 
 function setupEvents() {
@@ -130,22 +245,26 @@ function setupEvents() {
   };
 
   document.getElementById('add-tx-btn').onclick = () => {
+    const typeEl = document.getElementById('tx-type');
     const dateEl = document.getElementById('tx-date');
     const catEl = document.getElementById('tx-category');
     const descEl = document.getElementById('tx-desc');
     const amtEl = document.getElementById('tx-amount');
 
+    const type = typeEl.value;
     const date = dateEl.value || formatDate(new Date());
     const amount = parseFloat(amtEl.value || '0');
     if (isNaN(amount) || amount === 0) return;
 
     const tx = {
       id: Date.now() + '-' + Math.random().toString(16).slice(2),
+      type,
       date,
       category: catEl.value.trim(),
       desc: descEl.value.trim(),
       amount
     };
+
     state.transactions.push(tx);
     saveState();
 
@@ -177,9 +296,10 @@ function setupEvents() {
     const weekTx = state.transactions.filter(tx =>
       isInWeek(tx.date, state.currentWeekStart)
     );
-    let csv = 'Date,Category,Description,Amount\n';
+    let csv = 'Type,Date,Category,Description,Amount\n';
     weekTx.forEach(tx => {
       const row = [
+        tx.type,
         tx.date,
         `"${(tx.category || '').replace(/"/g, '""')}"`,
         `"${(tx.desc || '').replace(/"/g, '""')}"`,
@@ -196,11 +316,7 @@ function setupEvents() {
     a.click();
     URL.revokeObjectURL(url);
   };
-}
 
-window.addEventListener('load', () => {
-  loadState();
-  state.currentWeekStart = startOfWeek(new Date());
-  setupEvents();
-  render();
-});
+  document.getElementById('category-filter').onchange = render;
+
+  document.getElementById('monthly-header').onclick = () => {
