@@ -285,6 +285,9 @@ function setupEvents() {
       desc: descEl.value.trim(),
       amount
     };
+if (type === 'cash-income' || type === 'cash-expense') {
+  tx.category = 'Cash';
+}
 
     state.transactions.push(tx);
     saveState();
@@ -296,6 +299,7 @@ function setupEvents() {
 
     render();
   };
+document.getElementById('category-filter').value = 'all';
 
   document.getElementById('prev-week-btn').onclick = () => {
     state.currentWeekStart = addDays(state.currentWeekStart, -7);
