@@ -22,6 +22,7 @@ self.addEventListener('activate', event => {
     )
   );
 });
+// rebuild
 
 self.addEventListener('fetch', event => {
   event.respondWith(
