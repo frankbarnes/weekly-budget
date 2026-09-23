@@ -320,3 +320,17 @@ function setupEvents() {
   document.getElementById('category-filter').onchange = render;
 
   document.getElementById('monthly-header').onclick = () => {
+  document.getElementById('monthly-header').onclick = () => {
+    const content = document.getElementById('monthly-content');
+    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+  };
+
+  document.getElementById('yearly-header').onclick = () => {
+    const content = document.getElementById('yearly-content');
+    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+  };
+}
+
+loadState();
+setupEvents();
+render();
