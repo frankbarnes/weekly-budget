@@ -20,6 +20,8 @@
       <div><strong>Spent:</strong> $<span id="spent-amount">0.00</span></div>
       <div><strong>Remaining:</strong> $<span id="remaining-amount">0.00</span></div>
       <div><strong>Ahead/Behind:</strong> <span id="ahead-behind"></span></div>
+      <div><strong>Cash on hand:</strong> $<span id="cash-on-hand">0.00</span></div>
+
     </div>
   </header>
 
@@ -41,9 +43,12 @@
       <div class="form-row">
         <label>Type:
           <select id="tx-type">
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-          </select>
+  <option value="expense">Expense</option>
+  <option value="income">Income</option>
+  <option value="cash-income">Cash Income</option>
+  <option value="cash-expense">Cash Expense</option>
+</select>
+
         </label>
         <label>Date:
           <input type="date" id="tx-date">
