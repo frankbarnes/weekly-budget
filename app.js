@@ -84,17 +84,28 @@ function render() {
 
   let income = 0;
   let spent = 0;
+  let cashIncome = 0;
+  let cashSpent = 0;
+
 
   const categories = new Set(['all']);
 
   tbody.innerHTML = '';
 
-  weekTx.forEach(tx => {
-    categories.add(tx.category);
+ weekTx.forEach(tx => {
+  categories.add(tx.category);
 
-    if (tx.type === 'income') income += tx.amount;
-    else spent += tx.amount;
-  });
+  if (tx.type === 'income') {
+    income += tx.amount;
+  } else if (tx.type === 'cash-income') {
+    cashIncome += tx.amount;
+  } else if (tx.type === 'cash-expense') {
+    cashSpent += tx.amount;
+  } else {
+    spent += tx.amount;
+  }
+});
+
 
   categoryFilterEl.innerHTML = '';
   categories.forEach(cat => {
@@ -125,7 +136,14 @@ function render() {
 
       const tdAmt = document.createElement('td');
       tdAmt.textContent = tx.amount.toFixed(2);
-      if (tx.type === 'income') tdAmt.className = 'income-amount';
+      if (tx.type === 'income' || tx.type === 'cash-income') {
+  tdAmt.className = 'income-amount';
+}
+if (tx.type === 'cash-expense') {
+  tdAmt.style.color = '#b00020';
+  tdAmt.style.fontWeight = 'bold';
+}
+
 
       const tdDel = document.createElement('td');
       const btn = document.createElement('button');
@@ -151,6 +169,9 @@ function render() {
   incomeAmountEl.textContent = income.toFixed(2);
   spentAmountEl.textContent = spent.toFixed(2);
   remainingAmountEl.textContent = (state.weeklyBudget - spent).toFixed(2);
+  const cashOnHand = cashIncome - cashSpent;
+  document.getElementById('cash-on-hand').textContent = cashOnHand.toFixed(2);
+
 
   const ahead = income - spent - state.weeklyBudget;
   aheadBehindEl.textContent = ahead.toFixed(2);
