@@ -8,12 +8,17 @@ let state = {
 
 function startOfWeek(d) {
   const date = new Date(d);
-  const day = date.getDay();
-  const diff = (day === 0 ? -6 : 1) - day;
+  const day = date.getDay(); // 0=Sun, 1=Mon, ... 5=Fri
+
+  // Friday = start of week (day 5)
+  let diff = 5 - day;
+  if (diff > 0) diff -= 7; // move backward to last Friday
+
   date.setDate(date.getDate() + diff);
   date.setHours(0,0,0,0);
   return date;
 }
+
 
 function addDays(d, days) {
   const nd = new Date(d);
