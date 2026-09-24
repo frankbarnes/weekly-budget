@@ -248,22 +248,38 @@ function renderYearly() {
 
   let income = 0;
   let spent = 0;
+  let cashIncome = 0;
+  let cashSpent = 0;
+
   const catTotals = {};
 
   yearTx.forEach(tx => {
-    if (tx.type === 'income') income += tx.amount;
-    else spent += tx.amount;
+    if (tx.type === 'income') {
+      income += tx.amount;
+    } else if (tx.type === 'cash-income') {
+      cashIncome += tx.amount;
+    } else if (tx.type === 'cash-expense') {
+      cashSpent += tx.amount;
+    } else {
+      spent += tx.amount;
+    }
 
     catTotals[tx.category] = (catTotals[tx.category] || 0) + tx.amount;
   });
 
   const ahead = income - spent - (state.weeklyBudget * 52);
+  const cashOnHand = cashIncome - cashSpent;
 
   let html = `
     <div><strong>Income:</strong> $${income.toFixed(2)}</div>
     <div><strong>Spending:</strong> $${spent.toFixed(2)}</div>
     <div><strong>Net:</strong> $${(income - spent).toFixed(2)}</div>
     <div><strong>Ahead/Behind:</strong> $${ahead.toFixed(2)}</div>
+
+    <div><strong>Cash Income:</strong> $${cashIncome.toFixed(2)}</div>
+    <div><strong>Cash Spending:</strong> $${cashSpent.toFixed(2)}</div>
+    <div><strong>Cash on hand:</strong> $${cashOnHand.toFixed(2)}</div>
+
     <h3>Category Totals</h3>
   `;
 
@@ -273,6 +289,8 @@ function renderYearly() {
 
   content.innerHTML = html;
 }
+
+
 
 function setupEvents() {
   document.getElementById('save-budget-btn').onclick = () => {
