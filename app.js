@@ -195,10 +195,19 @@ function renderMonthly() {
   let income = 0;
   let spent = 0;
   const catTotals = {};
+let cashIncome = 0;
+let cashSpent = 0;
 
-  monthTx.forEach(tx => {
-    if (tx.type === 'income') income += tx.amount;
-    else spent += tx.amount;
+ if (tx.type === 'income') {
+  income += tx.amount;
+} else if (tx.type === 'cash-income') {
+  cashIncome += tx.amount;
+} else if (tx.type === 'cash-expense') {
+  cashSpent += tx.amount;
+} else {
+  spent += tx.amount;
+}
+
 
     catTotals[tx.category] = (catTotals[tx.category] || 0) + tx.amount;
   });
@@ -206,6 +215,10 @@ function renderMonthly() {
   const ahead = income - spent - (state.weeklyBudget * 4);
 
   let html = `
+  html += `<div><strong>Cash Income:</strong> $${cashIncome.toFixed(2)}</div>`;
+html += `<div><strong>Cash Spending:</strong> $${cashSpent.toFixed(2)}</div>`;
+html += `<div><strong>Cash on hand:</strong> $${(cashIncome - cashSpent).toFixed(2)}</div>`;
+
     <div><strong>Income:</strong> $${income.toFixed(2)}</div>
     <div><strong>Spending:</strong> $${spent.toFixed(2)}</div>
     <div><strong>Net:</strong> $${(income - spent).toFixed(2)}</div>
