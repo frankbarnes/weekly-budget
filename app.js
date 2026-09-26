@@ -1,85 +1,53 @@
-const STORAGE_KEY = 'weekly-budget-data-v2';
+// app.js — full working version with weekly, monthly, yearly, cash, filters, delete, CSV
+
+const STORAGE_KEY = 'weekly-budget-state';
 
 let state = {
   weeklyBudget: 0,
-  transactions: [], // {id, type, date, category, desc, amount}
-  currentWeekStart: startOfWeek(new Date())
+  transactions: []
 };
 
-function startOfWeek(d) {
-  const date = new Date(d);
-  const day = date.getDay(); // 0=Sun, 1=Mon, ... 5=Fri
+let currentWeek = new Date();
 
-  // Friday = start of week (day 5)
-  let diff = 5 - day;
-  if (diff > 0) diff -= 7; // move backward to last Friday
-
-  date.setDate(date.getDate() + diff);
-  date.setHours(0,0,0,0);
-  return date;
-}
-
-
-function addDays(d, days) {
-  const nd = new Date(d);
-  nd.setDate(nd.getDate() + days);
-  return nd;
-}
-
-function formatDate(d) {
-  return d.toISOString().slice(0,10);
-}
-
+// ---- Persistence ----
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return;
   try {
-    const data = JSON.parse(raw);
-    state.weeklyBudget = data.weeklyBudget || 0;
-    weekTx = data.transactions || [];
-  } catch (e) {
-    console.error('Failed to parse storage', e);
-  }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.transactions)) {
+        state = parsed;
+      }
+    }
+  } catch (e) {}
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    weeklyBudget: state.weeklyBudget,
-    transactions: state.transactions
-  }));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {}
 }
 
-function getWeekRange(start) {
-  const end = addDays(start, 6);
-  return {
-    startLabel: formatDate(start),
-    endLabel: formatDate(end)
-  };
+// ---- Week helpers (Friday → Thursday) ----
+function startOfWeek(d) {
+  const date = new Date(d);
+  const day = date.getDay(); // 0=Sun ... 5=Fri
+  let diff = 5 - day;        // target Friday
+  if (diff > 0) diff -= 7;   // go back to last Friday
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
 }
 
-function isInWeek(dateStr, weekStart) {
-  const d = new Date(dateStr);
-  const s = new Date(weekStart);
-  const e = addDays(s, 6);
-  return d >= s && d <= e;
+function endOfWeek(weekStart) {
+  const end = new Date(weekStart);
+  end.setDate(weekStart.getDate() + 6); // Friday + 6 = Thursday
+  end.setHours(23, 59, 59, 999);
+  return end;
 }
 
+// ---- Rendering ----
 function render() {
-  // --- WEEKLY RANGE (Friday → Thursday) ---
-const today = currentWeek; // currentWeek is your navigation anchor
-const weekStart = startOfWeek(today); // your existing Friday-start function
-
-// End of week = Thursday (6 days after Friday)
-const weekEnd = new Date(weekStart);
-weekEnd.setDate(weekStart.getDate() + 6);
-weekEnd.setHours(23, 59, 59, 999);
-
-// --- FILTER TRANSACTIONS FOR THIS WEEK ---
-const weekTx = state.transactions.filter(tx => {
-  const d = new Date(tx.date);
-  return d >= weekStart && d <= weekEnd;
-});
-
   const weekLabelEl = document.getElementById('week-label');
   const weekRangeEl = document.getElementById('week-range');
   const budgetAmountEl = document.getElementById('budget-amount');
@@ -91,337 +59,437 @@ const weekTx = state.transactions.filter(tx => {
   const tbody = document.getElementById('tx-table-body');
   const categoryFilterEl = document.getElementById('category-filter');
 
-  const range = getWeekRange(state.currentWeekStart);
-  weekLabelEl.textContent = 'Week of';
-  weekRangeEl.textContent = '${weekStart.toLocaleDateString()} – ${weekEnd.toLocaleDateString()}`;
+  const weekStart = startOfWeek(currentWeek);
+  const weekEnd = endOfWeek(weekStart);
+
+  weekLabelEl.textContent = `Week of ${weekStart.toLocaleDateString()}`;
+  weekRangeEl.textContent =
+    `${weekStart.toLocaleDateString()} – ${weekEnd.toLocaleDateString()}`;
 
   budgetAmountEl.textContent = state.weeklyBudget.toFixed(2);
   budgetInputEl.value = state.weeklyBudget ? state.weeklyBudget : '';
 
-  const weekTx = state.transactions.filter(tx =>
-    isInWeek(tx.date, state.currentWeekStart)
+  // Weekly transactions
+  const weekTx = state.transactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d >= weekStart && d <= weekEnd;
+  });
+
+  // Build category filter options
+  const selectedCategory = categoryFilterEl.value || 'all';
+  const categories = Array.from(
+    new Set(state.transactions.map(tx => tx.category).filter(Boolean))
   );
-
-  let income = 0;
-let spent = 0;
-let cashIncome = 0;
-let cashSpent = 0;
-
-// Use weekly transactions instead of ALL transactions
-weekTx.forEach(tx => {
-  const amt = parseFloat(tx.amount);
-
-  if (tx.type === 'income') income += amt;
-  if (tx.type === 'expense') spent += amt;
-
-  if (tx.type === 'cash-income') cashIncome += amt;
-  if (tx.type === 'cash-expense') cashSpent += amt;
-});
-
-
-
-  const categories = new Set(['all']);
-
-  tbody.innerHTML = '';
-
- weekTx.forEach(tx => {
-  categories.add(tx.category);
-
-  if (tx.type === 'income') {
-    income += tx.amount;
-  } else if (tx.type === 'cash-income') {
-    cashIncome += tx.amount;
-  } else if (tx.type === 'cash-expense') {
-    cashSpent += tx.amount;
-  } else {
-    spent += tx.amount;
-  }
-});
-
-
   categoryFilterEl.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = 'All';
+  categoryFilterEl.appendChild(allOpt);
   categories.forEach(cat => {
     const opt = document.createElement('option');
     opt.value = cat;
-    opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+    opt.textContent = cat;
+    if (cat === selectedCategory) opt.selected = true;
     categoryFilterEl.appendChild(opt);
   });
 
-  const selectedCat = categoryFilterEl.value;
+  // Totals
+  let income = 0;
+  let spent = 0;
+  let cashIncome = 0;
+  let cashSpent = 0;
 
+  weekTx.forEach(tx => {
+    const amt = parseFloat(tx.amount);
+    if (!isFinite(amt)) return;
+
+    if (tx.type === 'income') income += amt;
+    if (tx.type === 'expense') spent += amt;
+
+    if (tx.type === 'cash-income') cashIncome += amt;
+    if (tx.type === 'cash-expense') cashSpent += amt;
+  });
+
+  const remaining = state.weeklyBudget - spent;
+  const cashOnHand = cashIncome - cashSpent;
+
+  incomeAmountEl.textContent = income.toFixed(2);
+  spentAmountEl.textContent = spent.toFixed(2);
+  remainingAmountEl.textContent = remaining.toFixed(2);
+  document.getElementById('cash-on-hand').textContent = cashOnHand.toFixed(2);
+
+  if (remaining >= 0) {
+    aheadBehindEl.textContent = `Ahead by $${remaining.toFixed(2)}`;
+    aheadBehindEl.style.color = 'green';
+  } else {
+    aheadBehindEl.textContent = `Behind by $${Math.abs(remaining).toFixed(2)}`;
+    aheadBehindEl.style.color = 'red';
+  }
+
+  // Table
+  tbody.innerHTML = '';
   weekTx
-    .filter(tx => selectedCat === 'all' || tx.category === selectedCat)
+    .filter(tx => selectedCategory === 'all' || tx.category === selectedCategory)
     .forEach(tx => {
       const tr = document.createElement('tr');
 
-      const tdType = document.createElement('td');
-      tdType.textContent = tx.type === 'income' ? 'Income' : 'Expense';
+      const typeTd = document.createElement('td');
+      typeTd.textContent = tx.type;
+      tr.appendChild(typeTd);
 
-      const tdDate = document.createElement('td');
-      tdDate.textContent = tx.date;
+      const dateTd = document.createElement('td');
+      dateTd.textContent = tx.date;
+      tr.appendChild(dateTd);
 
-      const tdCat = document.createElement('td');
-      tdCat.textContent = tx.category || '';
+      const catTd = document.createElement('td');
+      catTd.textContent = tx.category || '';
+      tr.appendChild(catTd);
 
-      const tdDesc = document.createElement('td');
-      tdDesc.textContent = tx.desc || '';
+      const descTd = document.createElement('td');
+      descTd.textContent = tx.desc || '';
+      tr.appendChild(descTd);
 
-      const tdAmt = document.createElement('td');
-      tdAmt.textContent = tx.amount.toFixed(2);
-      if (tx.type === 'income' || tx.type === 'cash-income') {
-  tdAmt.className = 'income-amount';
-}
-if (tx.type === 'cash-expense') {
-  tdAmt.style.color = '#b00020';
-  tdAmt.style.fontWeight = 'bold';
-}
+      const amtTd = document.createElement('td');
+      amtTd.textContent = parseFloat(tx.amount).toFixed(2);
+      if (tx.type === 'expense' || tx.type === 'cash-expense') {
+        amtTd.style.color = 'red';
+      } else {
+        amtTd.style.color = 'green';
+      }
+      tr.appendChild(amtTd);
 
-
-      const tdDel = document.createElement('td');
+      const delTd = document.createElement('td');
       const btn = document.createElement('button');
       btn.textContent = 'Delete';
-      btn.className = 'delete-btn';
-      btn.onclick = () => {
+      btn.addEventListener('click', () => {
         state.transactions = state.transactions.filter(t => t.id !== tx.id);
         saveState();
         render();
-      };
-      tdDel.appendChild(btn);
-
-      tr.appendChild(tdType);
-      tr.appendChild(tdDate);
-      tr.appendChild(tdCat);
-      tr.appendChild(tdDesc);
-      tr.appendChild(tdAmt);
-      tr.appendChild(tdDel);
+      });
+      delTd.appendChild(btn);
+      tr.appendChild(delTd);
 
       tbody.appendChild(tr);
     });
 
-  incomeAmountEl.textContent = income.toFixed(2);
-  spentAmountEl.textContent = spent.toFixed(2);
-  remainingAmountEl.textContent = (state.weeklyBudget - spent).toFixed(2);
-  const cashOnHand = cashIncome - cashSpent;
-  document.getElementById('cash-on-hand').textContent = cashOnHand.toFixed(2);
-
-
-  const ahead = income - spent - state.weeklyBudget;
-  aheadBehindEl.textContent = ahead.toFixed(2);
-  aheadBehindEl.style.color = ahead >= 0 ? '#0a7d00' : '#b00020';
-
-  renderMonthly();
-  renderYearly();
+  renderMonthlySummary();
+  renderYearlySummary();
 }
 
-function renderMonthly() {
-  const content = document.getElementById('monthly-content');
-  const now = new Date();
-  const month = now.getMonth();
-  const year = now.getFullYear();
-
-  const monthTx = state.transactions.filter(tx => {
+// ---- Monthly & Yearly summaries ----
+function groupByMonth() {
+  const map = new Map();
+  state.transactions.forEach(tx => {
     const d = new Date(tx.date);
-    return d.getMonth() === month && d.getFullYear() === year;
-  });
-
-  let income = 0;
-  let spent = 0;
-  let cashIncome = 0;
-  let cashSpent = 0;
-
-  const catTotals = {};
-
-  monthTx.forEach(tx => {
-    if (tx.type === 'income') {
-      income += tx.amount;
-    } else if (tx.type === 'cash-income') {
-      cashIncome += tx.amount;
-    } else if (tx.type === 'cash-expense') {
-      cashSpent += tx.amount;
-    } else {
-      spent += tx.amount;
+    if (isNaN(d)) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!map.has(key)) {
+      map.set(key, { income: 0, expense: 0, cashIncome: 0, cashExpense: 0 });
     }
+    const bucket = map.get(key);
+    const amt = parseFloat(tx.amount);
+    if (!isFinite(amt)) return;
 
-    catTotals[tx.category] = (catTotals[tx.category] || 0) + tx.amount;
+    if (tx.type === 'income') bucket.income += amt;
+    if (tx.type === 'expense') bucket.expense += amt;
+    if (tx.type === 'cash-income') bucket.cashIncome += amt;
+    if (tx.type === 'cash-expense') bucket.cashExpense += amt;
   });
-
-  const ahead = income - spent - (state.weeklyBudget * 4);
-  const cashOnHand = cashIncome - cashSpent;
-
-  let html = `
-    <div><strong>Income:</strong> $${income.toFixed(2)}</div>
-    <div><strong>Spending:</strong> $${spent.toFixed(2)}</div>
-    <div><strong>Net:</strong> $${(income - spent).toFixed(2)}</div>
-    <div><strong>Ahead/Behind:</strong> $${ahead.toFixed(2)}</div>
-
-    <div><strong>Cash Income:</strong> $${cashIncome.toFixed(2)}</div>
-    <div><strong>Cash Spending:</strong> $${cashSpent.toFixed(2)}</div>
-    <div><strong>Cash on hand:</strong> $${cashOnHand.toFixed(2)}</div>
-
-    <h3>Category Totals</h3>
-  `;
-
-  Object.keys(catTotals).forEach(cat => {
-    html += `<div>${cat}: $${catTotals[cat].toFixed(2)}</div>`;
-  });
-
-  content.innerHTML = html;
+  return map;
 }
 
-
-function renderYearly() {
-  const content = document.getElementById('yearly-content');
-  const year = new Date().getFullYear();
-
-  const yearTx = state.transactions.filter(tx => {
+function groupByYear() {
+  const map = new Map();
+  state.transactions.forEach(tx => {
     const d = new Date(tx.date);
-    return d.getFullYear() === year;
-  });
-
-  let income = 0;
-  let spent = 0;
-  let cashIncome = 0;
-  let cashSpent = 0;
-
-  const catTotals = {};
-
-  yearTx.forEach(tx => {
-    if (tx.type === 'income') {
-      income += tx.amount;
-    } else if (tx.type === 'cash-income') {
-      cashIncome += tx.amount;
-    } else if (tx.type === 'cash-expense') {
-      cashSpent += tx.amount;
-    } else {
-      spent += tx.amount;
+    if (isNaN(d)) return;
+    const key = d.getFullYear();
+    if (!map.has(key)) {
+      map.set(key, { income: 0, expense: 0, cashIncome: 0, cashExpense: 0 });
     }
+    const bucket = map.get(key);
+    const amt = parseFloat(tx.amount);
+    if (!isFinite(amt)) return;
 
-    catTotals[tx.category] = (catTotals[tx.category] || 0) + tx.amount;
+    if (tx.type === 'income') bucket.income += amt;
+    if (tx.type === 'expense') bucket.expense += amt;
+    if (tx.type === 'cash-income') bucket.cashIncome += amt;
+    if (tx.type === 'cash-expense') bucket.cashExpense += amt;
   });
-
-  const ahead = income - spent - (state.weeklyBudget * 52);
-  const cashOnHand = cashIncome - cashSpent;
-
-  let html = `
-    <div><strong>Income:</strong> $${income.toFixed(2)}</div>
-    <div><strong>Spending:</strong> $${spent.toFixed(2)}</div>
-    <div><strong>Net:</strong> $${(income - spent).toFixed(2)}</div>
-    <div><strong>Ahead/Behind:</strong> $${ahead.toFixed(2)}</div>
-
-    <div><strong>Cash Income:</strong> $${cashIncome.toFixed(2)}</div>
-    <div><strong>Cash Spending:</strong> $${cashSpent.toFixed(2)}</div>
-    <div><strong>Cash on hand:</strong> $${cashOnHand.toFixed(2)}</div>
-
-    <h3>Category Totals</h3>
-  `;
-
-  Object.keys(catTotals).forEach(cat => {
-    html += `<div>${cat}: $${catTotals[cat].toFixed(2)}</div>`;
-  });
-
-  content.innerHTML = html;
+  return map;
 }
 
+function renderMonthlySummary() {
+  const container = document.getElementById('monthly-content');
+  container.innerHTML = '';
 
+  const data = Array.from(groupByMonth().entries()).sort((a, b) =>
+    a[0].localeCompare(b[0])
+  );
 
-function setupEvents() {
-  document.getElementById('save-budget-btn').onclick = () => {
-    const val = parseFloat(document.getElementById('budget-input').value || '0');
-    state.weeklyBudget = isNaN(val) ? 0 : val;
-    saveState();
-    render();
-  };
+  if (!data.length) {
+    container.textContent = 'No data yet.';
+    return;
+  }
 
-  document.getElementById('add-tx-btn').onclick = () => {
-    const typeEl = document.getElementById('tx-type');
-    const dateEl = document.getElementById('tx-date');
-    const catEl = document.getElementById('tx-category');
-    const descEl = document.getElementById('tx-desc');
-    const amtEl = document.getElementById('tx-amount');
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Month', 'Income', 'Expense', 'Net', 'Cash In', 'Cash Out', 'Cash Net'].forEach(
+    h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      headRow.appendChild(th);
+    }
+  );
+  thead.appendChild(headRow);
+  table.appendChild(thead);
 
-    const type = typeEl.value;
-    const date = dateEl.value || formatDate(new Date());
-    const amount = parseFloat(amtEl.value || '0');
-    if (isNaN(amount) || amount === 0) return;
+  const tbody = document.createElement('tbody');
+  data.forEach(([key, bucket]) => {
+    const [year, month] = key.split('-');
+    const label = `${month}/${year}`;
+    const tr = document.createElement('tr');
 
-    const tx = {
-      id: Date.now() + '-' + Math.random().toString(16).slice(2),
-      type,
-      date,
-      category: catEl.value.trim(),
-      desc: descEl.value.trim(),
-      amount
-    };
-if (type === 'cash-income' || type === 'cash-expense') {
-  tx.category = 'Cash';
-}
+    const net = bucket.income - bucket.expense;
+    const cashNet = bucket.cashIncome - bucket.cashExpense;
 
-   weekTx.forEach(tx => {
-    saveState();
-
-    amtEl.value = '';
-    descEl.value = '';
-    catEl.value = '';
-    dateEl.value = '';
-
-    render();
-  };
-document.getElementById('category-filter').value = 'all';
-
-  document.getElementById('prev-week-btn').onclick = () => {
-    state.currentWeekStart = addDays(state.currentWeekStart, -7);
-    render();
-  };
-
-  document.getElementById('next-week-btn').onclick = () => {
-    state.currentWeekStart = addDays(state.currentWeekStart, 7);
-    render();
-  };
-
-  document.getElementById('this-week-btn').onclick = () => {
-    state.currentWeekStart = startOfWeek(new Date());
-    render();
-  };
-
-  document.getElementById('export-csv-btn').onclick = () => {
-    const range = getWeekRange(state.currentWeekStart);
-    const weekTx = state.transactions.filter(tx =>
-      isInWeek(tx.date, state.currentWeekStart)
-    );
-    let csv = 'Type,Date,Category,Description,Amount\n';
-    weekTx.forEach(tx => {
-      const row = [
-        tx.type,
-        tx.date,
-        `"${(tx.category || '').replace(/"/g, '""')}"`,
-        `"${(tx.desc || '').replace(/"/g, '""')}"`,
-        tx.amount.toFixed(2)
-      ].join(',');
-      csv += row + '\n';
+    [label,
+     bucket.income.toFixed(2),
+     bucket.expense.toFixed(2),
+     net.toFixed(2),
+     bucket.cashIncome.toFixed(2),
+     bucket.cashExpense.toFixed(2),
+     cashNet.toFixed(2)
+    ].forEach(val => {
+      const td = document.createElement('td');
+      td.textContent = val;
+      tr.appendChild(td);
     });
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `weekly-budget-${range.startLabel}-to-${range.endLabel}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+    tbody.appendChild(tr);
+  });
 
-  document.getElementById('category-filter').onchange = render;
-
-    document.getElementById('monthly-header').onclick = () => {
-    const content = document.getElementById('monthly-content');
-    content.style.display = content.style.display === 'block' ? 'none' : 'block';
-  };
-
-  document.getElementById('yearly-header').onclick = () => {
-    const content = document.getElementById('yearly-content');
-    content.style.display = content.style.display === 'block' ? 'none' : 'block';
-  };
+  table.appendChild(tbody);
+  container.appendChild(table);
 }
 
-loadState();
-setupEvents();
-render();
+function renderYearlySummary() {
+  const container = document.getElementById('yearly-content');
+  container.innerHTML = '';
+
+  const data = Array.from(groupByYear().entries()).sort((a, b) => a[0] - b[0]);
+
+  if (!data.length) {
+    container.textContent = 'No data yet.';
+    return;
+  }
+
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Year', 'Income', 'Expense', 'Net', 'Cash In', 'Cash Out', 'Cash Net'].forEach(
+    h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      headRow.appendChild(th);
+    }
+  );
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  data.forEach(([year, bucket]) => {
+    const tr = document.createElement('tr');
+    const net = bucket.income - bucket.expense;
+    const cashNet = bucket.cashIncome - bucket.cashExpense;
+
+    [String(year),
+     bucket.income.toFixed(2),
+     bucket.expense.toFixed(2),
+     net.toFixed(2),
+     bucket.cashIncome.toFixed(2),
+     bucket.cashExpense.toFixed(2),
+     cashNet.toFixed(2)
+    ].forEach(val => {
+      const td = document.createElement('td');
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+// ---- Add transaction ----
+function setupAddTransaction() {
+  const typeEl = document.getElementById('tx-type');
+  const dateEl = document.getElementById('tx-date');
+  const catEl = document.getElementById('tx-category');
+  const descEl = document.getElementById('tx-desc');
+  const amtEl = document.getElementById('tx-amount');
+  const btn = document.getElementById('add-tx-btn');
+
+  btn.addEventListener('click', () => {
+    const type = typeEl.value;
+    const date = dateEl.value;
+    const category = catEl.value.trim();
+    const desc = descEl.value.trim();
+    const amount = parseFloat(amtEl.value);
+
+    if (!date || !isFinite(amount)) {
+      alert('Please enter a valid date and amount.');
+      return;
+    }
+
+    const tx = {
+      id: Date.now() + Math.random().toString(16).slice(2),
+      type,
+      date,
+      category,
+      desc,
+      amount
+    };
+
+    state.transactions.push(tx);
+    saveState();
+
+    // clear form
+    descEl.value = '';
+    amtEl.value = '';
+    // keep type/date/category as-is for speed
+
+    render();
+  });
+}
+
+// ---- Budget save ----
+function setupBudget() {
+  const input = document.getElementById('budget-input');
+  const btn = document.getElementById('save-budget-btn');
+
+  btn.addEventListener('click', () => {
+    const val = parseFloat(input.value);
+    if (!isFinite(val) || val < 0) {
+      alert('Enter a valid weekly budget.');
+      return;
+    }
+    state.weeklyBudget = val;
+    saveState();
+    render();
+  });
+}
+
+// ---- Week navigation ----
+function setupWeekNav() {
+  const prevBtn = document.getElementById('prev-week-btn');
+  const nextBtn = document.getElementById('next-week-btn');
+  const thisBtn = document.getElementById('this-week-btn');
+
+  prevBtn.addEventListener('click', () => {
+    currentWeek.setDate(currentWeek.getDate() - 7);
+    render();
+  });
+
+  nextBtn.addEventListener('click', () => {
+    currentWeek.setDate(currentWeek.getDate() + 7);
+    render();
+  });
+
+  thisBtn.addEventListener('click', () => {
+    currentWeek = new Date();
+    render();
+  });
+}
+
+// ---- Category filter ----
+function setupCategoryFilter() {
+  const categoryFilterEl = document.getElementById('category-filter');
+  categoryFilterEl.addEventListener('change', () => {
+    render();
+  });
+}
+
+// ---- CSV export ----
+function setupExportCSV() {
+  const btn = document.getElementById('export-csv-btn');
+  btn.addEventListener('click', () => {
+    const weekStart = startOfWeek(currentWeek);
+    const weekEnd = endOfWeek(weekStart);
+
+    const weekTx = state.transactions.filter(tx => {
+      const d = new Date(tx.date);
+      return d >= weekStart && d <= weekEnd;
+    });
+
+    if (!weekTx.length) {
+      alert('No transactions for this week.');
+      return;
+    }
+
+    const rows = [
+      ['Type', 'Date', 'Category', 'Description', 'Amount']
+    ];
+
+    weekTx.forEach(tx => {
+      rows.push([
+        tx.type,
+        tx.date,
+        tx.category || '',
+        tx.desc || '',
+        parseFloat(tx.amount).toFixed(2)
+      ]);
+    });
+
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'weekly-budget.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
+
+// ---- Collapse headers ----
+function setupCollapses() {
+  const monthlyHeader = document.getElementById('monthly-header');
+  const monthlyContent = document.getElementById('monthly-content');
+  const yearlyHeader = document.getElementById('yearly-header');
+  const yearlyContent = document.getElementById('yearly-content');
+
+  monthlyHeader.addEventListener('click', () => {
+    const visible = monthlyContent.style.display !== 'none';
+    monthlyContent.style.display = visible ? 'none' : 'block';
+    monthlyHeader.textContent = visible ? 'Monthly Summary ▶' : 'Monthly Summary ▼';
+  });
+
+  yearlyHeader.addEventListener('click', () => {
+    const visible = yearlyContent.style.display !== 'none';
+    yearlyContent.style.display = visible ? 'none' : 'block';
+    yearlyHeader.textContent = visible ? 'Yearly Summary ▶' : 'Yearly Summary ▼';
+  });
+
+  // default: show both
+  monthlyContent.style.display = 'block';
+  yearlyContent.style.display = 'block';
+}
+
+// ---- Init ----
+document.addEventListener('DOMContentLoaded', () => {
+  loadState();
+  setupAddTransaction();
+  setupBudget();
+  setupWeekNav();
+  setupCategoryFilter();
+  setupExportCSV();
+  setupCollapses();
+  render();
+});
