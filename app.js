@@ -36,7 +36,7 @@ function loadState() {
   try {
     const data = JSON.parse(raw);
     state.weeklyBudget = data.weeklyBudget || 0;
-    state.transactions = data.transactions || [];
+    weekTx = data.transactions || [];
   } catch (e) {
     console.error('Failed to parse storage', e);
   }
@@ -65,6 +65,21 @@ function isInWeek(dateStr, weekStart) {
 }
 
 function render() {
+  // --- WEEKLY RANGE (Friday → Thursday) ---
+const today = currentWeek; // currentWeek is your navigation anchor
+const weekStart = startOfWeek(today); // your existing Friday-start function
+
+// End of week = Thursday (6 days after Friday)
+const weekEnd = new Date(weekStart);
+weekEnd.setDate(weekStart.getDate() + 6);
+weekEnd.setHours(23, 59, 59, 999);
+
+// --- FILTER TRANSACTIONS FOR THIS WEEK ---
+const weekTx = state.transactions.filter(tx => {
+  const d = new Date(tx.date);
+  return d >= weekStart && d <= weekEnd;
+});
+
   const weekLabelEl = document.getElementById('week-label');
   const weekRangeEl = document.getElementById('week-range');
   const budgetAmountEl = document.getElementById('budget-amount');
@@ -78,7 +93,7 @@ function render() {
 
   const range = getWeekRange(state.currentWeekStart);
   weekLabelEl.textContent = 'Week of';
-  weekRangeEl.textContent = `${range.startLabel} – ${range.endLabel}`;
+  weekRangeEl.textContent = '${weekStart.toLocaleDateString()} – ${weekEnd.toLocaleDateString()}`;
 
   budgetAmountEl.textContent = state.weeklyBudget.toFixed(2);
   budgetInputEl.value = state.weeklyBudget ? state.weeklyBudget : '';
@@ -88,9 +103,21 @@ function render() {
   );
 
   let income = 0;
-  let spent = 0;
-  let cashIncome = 0;
-  let cashSpent = 0;
+let spent = 0;
+let cashIncome = 0;
+let cashSpent = 0;
+
+// Use weekly transactions instead of ALL transactions
+weekTx.forEach(tx => {
+  const amt = parseFloat(tx.amount);
+
+  if (tx.type === 'income') income += amt;
+  if (tx.type === 'expense') spent += amt;
+
+  if (tx.type === 'cash-income') cashIncome += amt;
+  if (tx.type === 'cash-expense') cashSpent += amt;
+});
+
 
 
   const categories = new Set(['all']);
@@ -329,7 +356,7 @@ if (type === 'cash-income' || type === 'cash-expense') {
   tx.category = 'Cash';
 }
 
-    state.transactions.push(tx);
+   weekTx.forEach(tx => {
     saveState();
 
     amtEl.value = '';
