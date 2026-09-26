@@ -1,4 +1,5 @@
-// app.js — full working version with weekly, monthly, yearly, cash, filters, delete, CSV
+// app.js — full working version for frankbarnes/weekly-budget
+// Weekly (Fri→Thu), cash, filters, delete, CSV, monthly & yearly summaries
 
 const STORAGE_KEY = 'weekly-budget-state';
 
@@ -15,23 +16,28 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.transactions)) {
-        state = parsed;
+      if (parsed && Array.isArray(parsed.transactions)) {
+        state.weeklyBudget = Number(parsed.weeklyBudget) || 0;
+        state.transactions = parsed.transactions;
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Failed to load state', e);
+  }
 }
 
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Failed to save state', e);
+  }
 }
 
 // ---- Week helpers (Friday → Thursday) ----
 function startOfWeek(d) {
   const date = new Date(d);
-  const day = date.getDay(); // 0=Sun ... 5=Fri
+  const day = date.getDay(); // 0=Sun, 1=Mon, ... 5=Fri
   let diff = 5 - day;        // target Friday
   if (diff > 0) diff -= 7;   // go back to last Friday
   date.setDate(date.getDate() + diff);
@@ -72,11 +78,12 @@ function render() {
   // Weekly transactions
   const weekTx = state.transactions.filter(tx => {
     const d = new Date(tx.date);
+    if (isNaN(d)) return false;
     return d >= weekStart && d <= weekEnd;
   });
 
   // Build category filter options
-  const selectedCategory = categoryFilterEl.value || 'all';
+  const previousSelection = categoryFilterEl.value || 'all';
   const categories = Array.from(
     new Set(state.transactions.map(tx => tx.category).filter(Boolean))
   );
@@ -89,9 +96,10 @@ function render() {
     const opt = document.createElement('option');
     opt.value = cat;
     opt.textContent = cat;
-    if (cat === selectedCategory) opt.selected = true;
+    if (cat === previousSelection) opt.selected = true;
     categoryFilterEl.appendChild(opt);
   });
+  const selectedCategory = categoryFilterEl.value || 'all';
 
   // Totals
   let income = 0;
@@ -357,10 +365,9 @@ function setupAddTransaction() {
     state.transactions.push(tx);
     saveState();
 
-    // clear form
+    // clear amount/desc, keep others for speed
     descEl.value = '';
     amtEl.value = '';
-    // keep type/date/category as-is for speed
 
     render();
   });
@@ -422,6 +429,7 @@ function setupExportCSV() {
 
     const weekTx = state.transactions.filter(tx => {
       const d = new Date(tx.date);
+      if (isNaN(d)) return false;
       return d >= weekStart && d <= weekEnd;
     });
 
@@ -444,7 +452,10 @@ function setupExportCSV() {
       ]);
     });
 
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
 
@@ -477,7 +488,6 @@ function setupCollapses() {
     yearlyHeader.textContent = visible ? 'Yearly Summary ▶' : 'Yearly Summary ▼';
   });
 
-  // default: show both
   monthlyContent.style.display = 'block';
   yearlyContent.style.display = 'block';
 }
@@ -493,3 +503,4 @@ document.addEventListener('DOMContentLoaded', () => {
   setupCollapses();
   render();
 });
+
